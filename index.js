@@ -36,7 +36,7 @@ async function run() {
             const result = await workCollection.insertOne(addWork)
             res.send(result)
         })
-        
+
 
         app.get('/worksInfo/:id', async (req, res) => {
             const id = req.params.id;
@@ -82,7 +82,27 @@ async function run() {
             const result = await cursor.toArray()
             res.send(result)
         })
-       
+
+        app.put("/workdatas/:id", async (req, res) => {
+            const id = req.params.id;
+            const body = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    task: body.task,
+                    description: body.description,
+                    priority: body.priority,
+                    isCompleted: body.isCompleted,
+                },
+            };
+            const options = { upsert: true };
+            const result = await workCollection.updateOne(
+                filter,
+                updatedDoc,
+                options
+            );
+            res.send(result);
+        });
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
