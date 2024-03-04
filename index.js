@@ -18,7 +18,10 @@ const client = new MongoClient(uri, {
         version: ServerApiVersion.v1,
         strict: true,
         deprecationErrors: true,
-    }
+    },
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    maxPoolSize: 10,
 });
 
 async function run() {
@@ -28,6 +31,9 @@ async function run() {
 
         const userCollection = client.db('TaskDB').collection('users')
         const workCollection = client.db('TaskDB').collection('works')
+        const donationCollection = client.db('TaskDB').collection('donation')
+        const toysCollection = client.db("TaskDB").collection("Toys");
+
 
 
         app.post('/works', async (req, res) => {
@@ -83,13 +89,14 @@ async function run() {
             res.send(result)
         })
 
+
         app.put("/workdatas/:id", async (req, res) => {
             const id = req.params.id;
             const body = req.body;
             const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
-                    task: body.task,
+                    title: body.title,
                     description: body.description,
                     priority: body.priority,
                     isCompleted: body.isCompleted,
@@ -103,6 +110,130 @@ async function run() {
             );
             res.send(result);
         });
+
+        // donation API
+
+        app.get('/donation', async (req, res) => {
+            console.log(req.headers);
+            const cursor = donationCollection.find()
+            const result = await cursor.toArray()
+            res.send(result)
+        })
+
+        app.get('/donations', async (req, res) => {
+
+            const nameQuery = req.query.category;
+            const query = {
+                category: {
+                    $regex: new RegExp(nameQuery, "i"),
+                },
+            };
+            const cursor = donationCollection.find(query)
+            const result = await cursor.toArray()
+            res.send(result)
+        })
+
+
+
+        // toys collection
+
+        app.get("/allToys", async (req, res) => {
+            const cursor = toysCollection.find().limit(20);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+
+        app.get("/allToys/:category", async (req, res) => {
+            const result = await toysCollection
+                .find({ toyCategory: req.params.category })
+                .toArray();
+            res.send(result);
+        });
+
+        app.get("/getToysByText/:text", async (req, res) => {
+            const text = req.params.text;
+            const result = await toysCollection
+                .find({
+                    $or: [
+                        { toyName: { $regex: text, $options: "i" } },
+                        { toyCategory: { $regex: text, $options: "i" } },
+                    ],
+                })
+                .toArray();
+            res.send(result);
+        });
+
+        app.get("/toys/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await toysCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.get("/myToys/:email", async (req, res) => {
+            const result = await toysCollection
+                .find({ sellerEmail: req.params.email })
+                .toArray();
+            res.send(result);
+        });
+
+        app.get("/myToysHigh", async (req, res) => {
+            let query = {};
+            if (req.query?.sellerEmail) {
+                query = { sellerEmail: req.query.sellerEmail };
+            }
+            const result = await toysCollection
+                .find(query)
+                .sort({ price: -1 })
+                .collation({ locale: "en_US", numericOrdering: true })
+                .toArray();
+            res.send(result);
+        });
+
+        app.get("/myToysLow", async (req, res) => {
+            let query = {};
+            if (req.query?.sellerEmail) {
+                query = { sellerEmail: req.query.sellerEmail };
+            }
+            const result = await toysCollection
+                .find(query)
+                .sort({ price: 1 })
+                .collation({ locale: "en_US", numericOrdering: true })
+                .toArray();
+            res.send(result);
+        });
+
+        app.post("/addToy", async (req, res) => {
+            const body = req.body;
+            const result = await toysCollection.insertOne(body);
+            res.send(result);
+        });
+
+        app.put("/updatedToy/:id", async (req, res) => {
+            const id = req.params.id;
+            const body = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    toyName: body.toyName,
+                    toyPictureUrl: body.toyPictureUrl,
+                    rating: body.rating,
+                    price: body.price,
+                    description: body.description,
+                    availableQuantity: body.availableQuantity,
+                },
+            };
+            const result = await toysCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+        app.delete("/remove/:id", async (req, res) => {
+            const result = await toysCollection.deleteOne({
+                _id: new ObjectId(req.params.id),
+            });
+            res.send(result);
+        });
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
